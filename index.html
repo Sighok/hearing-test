@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tone Threshold Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an instrument panel. Setup and the response console sit side by side; the audiogram and the numbers run full width below. */
+:root {
+  --bg: #eef2f3;
+  --surface: #ffffff;
+  --sunken: #e3e9eb;
+  --fg: #13212a;
+  --muted: #566771;
+  --line: #cfd9dd;
+  --accent: #0d6b72;
+  --accent-ink: #ffffff;
+  --right: #c42d27;
+  --left: #2552c4;
+  --both: #7a3fb0;
+  --warn: #9a5a00;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1417; --surface: #141d21; --sunken: #0a1012; --fg: #e2eaed; --muted: #92a3ab;
+    --line: #26343a; --accent: #4fc3c9; --accent-ink: #062326; --right: #ff6f66; --left: #7ea4ff;
+    --both: #c495f0; --warn: #f0b04a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1417; --surface: #141d21; --sunken: #0a1012; --fg: #e2eaed; --muted: #92a3ab;
+  --line: #26343a; --accent: #4fc3c9; --accent-ink: #062326; --right: #ff6f66; --left: #7ea4ff;
+  --both: #c495f0; --warn: #f0b04a; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.55 var(--font-body);
+  padding-inline: 16px; padding-block: 28px 56px;
+}
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; gap: 22px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 64ch; }
+.eyebrow { font: 500 0.72rem/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+header { display: grid; gap: 10px; }
+
+.grid2 { display: grid; gap: 22px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); align-items: start; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 18px; min-width: 0; }
+.step { display: grid; gap: 10px; }
+.step-head { display: flex; align-items: baseline; gap: 10px; }
+.step-num { font: 500 0.8rem var(--font-mono); color: var(--muted); }
+.hint { color: var(--muted); font-size: 0.9rem; max-width: 62ch; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+
+.label { font: 500 0.72rem/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; gap: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip span {
+  display: inline-block; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px;
+  font: 500 0.85rem var(--font-mono); font-variant-numeric: tabular-nums; cursor: pointer; background: var(--surface); color: var(--fg);
+  user-select: none;
+}
+.chip input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+button, select, input[type="number"] { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.small { padding: 4px 9px; font-size: 0.82rem; font-weight: 500; }
+select, input[type="number"] {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; max-width: 100%;
+}
+input[type="number"] { width: 7.5em; font-family: var(--font-mono); }
+
+/* Response console */
+.console { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.readout {
+  background: var(--sunken); border-radius: 8px; padding: 14px; display: grid; gap: 6px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-height: 92px;
+}
+.readout .big { font-size: 1.05rem; font-weight: 500; }
+.readout .small { font-size: 0.8rem; color: var(--muted); }
+.meter { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+.hear {
+  width: 100%; min-height: 150px; border-radius: 12px; font: 700 1.5rem var(--font-display);
+  background: var(--surface); border: 2px solid var(--accent); color: var(--accent);
+  touch-action: manipulation; transition: transform 0.08s, background 0.08s;
+}
+.hear:not(:disabled):active, .hear.flash { transform: scale(0.985); background: var(--accent); color: var(--accent-ink); }
+.hear small { display: block; font: 400 0.8rem var(--font-body); color: var(--muted); margin-top: 6px; }
+.hear.flash small, .hear:not(:disabled):active small { color: var(--accent-ink); }
+.warn { color: var(--warn); font-size: 0.88rem; }
+
+/* Results */
+.summary { display: flex; flex-wrap: wrap; gap: 12px; }
+.delta {
+  flex: 1 1 220px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px;
+}
+.delta .v { font: 700 2rem/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.delta .k { font-size: 0.88rem; color: var(--muted); }
+.ear-R { color: var(--right); } .ear-L { color: var(--left); } .ear-B { color: var(--both); }
+.example-tag {
+  display: inline-block; font: 500 0.7rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px dashed var(--warn); color: var(--warn); padding: 3px 8px; border-radius: 4px;
+}
+.chart-box { overflow-x: auto; }
+.chart-box svg { display: block; width: 100%; min-width: 520px; height: auto; }
+.table-box { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 640px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 500 0.7rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td.ref { color: var(--muted); }
+.notes { display: grid; gap: 10px; color: var(--muted); font-size: 0.9rem; max-width: 72ch; }
+.notes strong { color: var(--fg); font-weight: 600; }
+.notes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Pure-tone audiometry · relative dBFS</span>
+    <h1>Tone Threshold Test</h1>
+    <p class="lede">Find the quietest tone you can hear at each frequency, then compare frequencies. The page can't know how loud your headphones are, so levels are in dB below digital full scale (dBFS). Differences between frequencies are still meaningful as long as you leave your volume alone.</p>
+  </header>
+
+  <div class="grid2">
+    <section class="panel" aria-labelledby="setup-h">
+      <h2 id="setup-h">Setup</h2>
+
+      <div class="step">
+        <div class="step-head"><span class="step-num">1</span><h3>Set your volume</h3></div>
+        <p class="hint">Use wired headphones in a quiet room. Turn off noise cancelling, spatial audio, EQ and "loudness" effects. Play the reference tone and set your device volume so it sounds <strong>soft but clear</strong>. Don't change the volume again until you've tested every frequency.</p>
+        <div class="row">
+          <button id="calBtn" type="button">Play reference tone</button>
+          <span class="hint" id="calInfo">1000 Hz at −40 dBFS, both ears</span>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="step">
+        <div class="step-head"><span class="step-num">2</span><h3>Choose what to test</h3></div>
+
+        <div class="field">
+          <span class="label" id="freqLbl">Frequencies (Hz)</span>
+          <div class="row" id="freqChips" role="group" aria-labelledby="freqLbl"></div>
+          <div class="row">
+            <input type="number" id="customFreq" min="20" max="20000" step="1" placeholder="e.g. 750" aria-label="Custom frequency in hertz">
+            <button type="button" class="small" id="addFreq">Add frequency</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label" id="earLbl">Ear</span>
+          <div class="row" role="radiogroup" aria-labelledby="earLbl">
+            <label class="chip"><input type="radio" name="ear" id="ear-R" value="R" checked><span>Right</span></label>
+            <label class="chip"><input type="radio" name="ear" id="ear-L" value="L"><span>Left</span></label>
+            <label class="chip"><input type="radio" name="ear" id="ear-RL" value="RL"><span>Right, then left</span></label>
+            <label class="chip"><input type="radio" name="ear" id="ear-B" value="B"><span>Both together</span></label>
+          </div>
+        </div>
+
+        <div class="row" style="gap:16px">
+          <label class="field" for="stepSel"><span class="label">Step size</span>
+            <select id="stepSel">
+              <option value="std">Standard (down 10, up 5 dB)</option>
+              <option value="fine">Fine (down 4, up 2 dB)</option>
+            </select>
+          </label>
+          <label class="field" for="toneSel"><span class="label">Tone</span>
+            <select id="toneSel">
+              <option value="pulsed">Pulsed (3 beeps)</option>
+              <option value="steady">Steady (1 s)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel console" aria-labelledby="test-h">
+      <div class="step-head"><span class="step-num">3</span><h2 id="test-h">Respond</h2></div>
+      <p class="hint">Tones come at random moments and get quieter until you miss them. Press the button or the space bar every time you hear one, even very faintly. Don't guess.</p>
+      <div class="readout" aria-live="polite">
+        <div class="big" id="statusBig">Ready</div>
+        <div class="small" id="statusSmall">Press Start when your volume is set.</div>
+        <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+      </div>
+      <button class="hear" id="hearBtn" type="button" disabled>I hear it<small>or press space</small></button>
+      <div class="row">
+        <button class="primary" id="startBtn" type="button">Start test</button>
+        <button id="stopBtn" type="button" disabled>Stop</button>
+      </div>
+      <p class="warn" id="faWarn" hidden></p>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="res-h">
+    <div class="row" style="justify-content:space-between">
+      <div class="row"><h2 id="res-h">Results</h2><span class="example-tag" id="exampleTag">Example values</span></div>
+      <div class="row">
+        <label class="row" for="refSel"><span class="label">Compare to</span> <select id="refSel"></select></label>
+        <button type="button" class="small" id="copyBtn">Copy results</button>
+        <button type="button" class="small" id="clearBtn">Clear</button>
+      </div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="chart-box"><svg id="chart" viewBox="0 0 720 300" role="img" aria-label="Audiogram of measured thresholds"></svg></div>
+    <div class="table-box"><table id="table"></table></div>
+    <textarea id="copyFallback" aria-label="Results as text" hidden rows="8" style="width:100%;font-family:var(--font-mono);font-size:0.8rem"></textarea>
+  </section>
+
+  <section class="notes" aria-labelledby="notes-h">
+    <h2 id="notes-h" style="color:var(--fg)">Reading the numbers</h2>
+    <ul>
+      <li><strong>Threshold</strong> is the quietest level you heard on at least 2 rising presentations (the Hughson–Westlake method audiologists use). More negative means you heard a quieter tone.</li>
+      <li><strong>Δ vs reference</strong> is how many dB more (+) or less (−) signal you needed at that frequency compared with the reference. For example, +6 dB at 500 Hz means 500 Hz had to be 6 dB louder than 1000 Hz before you heard it.</li>
+      <li><strong>Typical Δ</strong> is the same difference for an average young listener with normal hearing, from the ISO 226:2003 hearing threshold curve (free field). Normal ears are less sensitive at low and very high frequencies, so a non-zero Δ is expected.</li>
+      <li><strong>Your headphones colour the result.</strong> Their frequency response adds directly to every Δ, often by ±5 dB or more, and repeat tests normally vary by about ±5 dB. Retest each frequency two or three times and look at the average. This is not a medical test. See an audiologist if you're worried about your hearing.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  // ISO 226:2003 threshold of hearing (dB SPL, free field)
+  const ISO226 = [[20,78.5],[25,68.7],[31.5,59.5],[40,51.1],[50,44.0],[63,37.5],[80,31.5],[100,26.5],[125,22.1],[160,17.9],[200,14.4],[250,11.4],[315,8.6],[400,6.2],[500,4.4],[630,3.0],[800,2.2],[1000,2.4],[1250,3.5],[1600,1.7],[2000,-1.3],[2500,-4.2],[3150,-6.0],[4000,-5.4],[5000,-1.5],[6300,6.0],[8000,12.6],[10000,13.9],[12500,12.3]];
+  function iso226(f) {
+    if (f <= ISO226[0][0]) return ISO226[0][1];
+    const last = ISO226[ISO226.length - 1];
+    if (f >= last[0]) return last[1];
+    for (let i = 1; i < ISO226.length; i++) {
+      const [f1, t1] = ISO226[i];
+      if (f <= f1) {
+        const [f0, t0] = ISO226[i - 1];
+        const k = Math.log(f / f0) / Math.log(f1 / f0);
+        return t0 + k * (t1 - t0);
+      }
+    }
+  }
+
+  const LEVEL = { start: -40, min: -110, max: 0, searchUp: 10, maxTrials: 40 };
+  const STEPS = { std: { down: 10, up: 5 }, fine: { down: 4, up: 2 } };
+  const EAR_NAME = { R: "Right", L: "Left", B: "Both" };
+
+  // ---------- frequency chips ----------
+  const freqs = [125, 250, 500, 1000, 2000, 4000, 8000];
+  const checked = new Set([500, 1000]);
+  function renderChips() {
+    freqs.sort((a, b) => a - b);
+    $("freqChips").innerHTML = freqs.map((f) =>
+      `<label class="chip"><input type="checkbox" id="f-${f}" value="${f}" ${checked.has(f) ? "checked" : ""}><span>${fmtHz(f)}</span></label>`
+    ).join("");
+  }
+  $("freqChips").addEventListener("change", (e) => {
+    const f = Number(e.target.value);
+    e.target.checked ? checked.add(f) : checked.delete(f);
+  });
+  $("addFreq").addEventListener("click", () => {
+    const f = Math.round(Number($("customFreq").value));
+    if (!(f >= 20 && f <= 20000)) { $("customFreq").focus(); return; }
+    if (!freqs.includes(f)) freqs.push(f);
+    checked.add(f);
+    $("customFreq").value = "";
+    renderChips();
+  });
+  function fmtHz(f) { return f >= 1000 && f % 1000 === 0 ? `${f / 1000}k` : String(f); }
+
+  // ---------- audio ----------
+  let ctx = null;
+  function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function tone(freq, dbfs, ear, { pulsed = false, duration = 1.0 } = {}) {
+    const c = audio();
+    const t0 = c.currentTime + 0.03;
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const env = c.createGain();
+    env.gain.value = 0;
+    const lvl = c.createGain();
+    lvl.gain.value = Math.pow(10, dbfs / 20);
+    osc.connect(env).connect(lvl);
+    if (c.createStereoPanner) {
+      const pan = c.createStereoPanner();
+      pan.pan.value = ear === "L" ? -1 : ear === "R" ? 1 : 0;
+      lvl.connect(pan).connect(c.destination);
+    } else {
+      lvl.connect(c.destination);
+    }
+    // 25 ms ramps avoid the click that would otherwise be audible far below the tone's own threshold
+    const R = 0.025;
+    const segs = pulsed ? [[0, 0.22], [0.44, 0.22], [0.88, 0.22]] : [[0, duration]];
+    for (const [off, d] of segs) {
+      const t = t0 + off;
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(1, t + R);
+      env.gain.setValueAtTime(1, t + d - R);
+      env.gain.linearRampToValueAtTime(0, t + d);
+    }
+    const end = segs[segs.length - 1];
+    const dur = end[0] + end[1];
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+    return {
+      dur,
+      stop() {
+        try { env.gain.cancelScheduledValues(0); env.gain.setValueAtTime(0, c.currentTime); osc.stop(); } catch (_) {}
+      },
+    };
+  }
+
+  // ---------- reference tone ----------
+  let cal = null;
+  $("calBtn").addEventListener("click", () => {
+    if (cal) { stopCal(); return; }
+    cal = tone(1000, LEVEL.start, "B", { duration: 30 });
+    $("calBtn").textContent = "Stop reference tone";
+    cal.timer = setTimeout(stopCal, 30000);
+  });
+  function stopCal() {
+    if (!cal) return;
+    clearTimeout(cal.timer);
+    cal.stop();
+    cal = null;
+    $("calBtn").textContent = "Play reference tone";
+  }
+
+  // ---------- test runner ----------
+  let run = null;
+
+  function present(freq, level, ear, pulsed) {
+    return new Promise((resolve, reject) => {
+      run.reject = reject;
+      run.phase = "wait";
+      const gap = 1200 + Math.random() * 1800;
+      run.timer = setTimeout(() => {
+        const t = tone(freq, level, ear, { pulsed });
+        run.tone = t;
+        run.phase = "listen";
+        run.onHeard = () => { clearTimeout(run.timer); run.phase = "idle"; resolve(true); };
+        run.timer = setTimeout(() => { run.phase = "idle"; resolve(false); }, (t.dur + 1.2) * 1000 + 30);
+      }, gap);
+    });
+  }
+
+  // Modified Hughson–Westlake: down after a response, up after a miss.
+  // Threshold = lowest level heard on 2 ascending presentations.
+  async function measure(freq, ear, step, pulsed, onTrial) {
+    let level = LEVEL.start, prevHeard = null, everHeard = false, trials = 0, minHits = 0, maxMiss = 0;
+    const asc = new Map();
+    while (trials < LEVEL.maxTrials) {
+      onTrial(trials + 1);
+      const heard = await present(freq, level, ear, pulsed);
+      trials++;
+      const ascending = everHeard && prevHeard === false;
+      if (heard) everHeard = true;
+      if (ascending) {
+        const a = asc.get(level) || { n: 0, h: 0 };
+        a.n++; if (heard) a.h++;
+        asc.set(level, a);
+        if (heard && a.h >= 2) return { threshold: level, status: "ok", trials };
+      }
+      if (heard && level <= LEVEL.min && ++minHits >= 2) return { threshold: LEVEL.min, status: "floor", trials };
+      if (!heard && level >= LEVEL.max && ++maxMiss >= 2) return { threshold: null, status: "none", trials };
+      level += heard ? -step.down : (everHeard ? step.up : LEVEL.searchUp);
+      level = Math.max(LEVEL.min, Math.min(LEVEL.max, level));
+      prevHeard = heard;
+    }
+    let best = null;
+    for (const [l, a] of asc) if (a.h >= 1 && a.h / a.n >= 0.5 && (best === null || l < best)) best = l;
+    return { threshold: best, status: best === null ? "none" : "approx", trials };
+  }
+
+  function orderFreqs(list) {
+    // Audiology convention: start at 1 kHz (most reliable), then go up, then down
+    const s = [...list].sort((a, b) => a - b);
+    const hi = s.filter((f) => f >= 1000), lo = s.filter((f) => f < 1000).reverse();
+    return [...hi, ...lo];
+  }
+
+  async function startTest(jobs) {
+    if (run || !jobs.length) return;
+    stopCal();
+    audio();
+    const step = STEPS[$("stepSel").value];
+    const pulsed = $("toneSel").value === "pulsed";
+    run = { phase: "idle", falseAlarms: 0 };
+    setRunning(true);
+    try {
+      for (let i = 0; i < jobs.length; i++) {
+        const { freq, ear } = jobs[i];
+        $("meter").style.width = `${(i / jobs.length) * 100}%`;
+        const r = await measure(freq, ear, step, pulsed, (n) => {
+          $("statusBig").textContent = `${EAR_NAME[ear]} ear · ${freq} Hz`;
+          $("statusSmall").textContent = `Tone ${i + 1} of ${jobs.length} · presentation ${n}`;
+        });
+        addResult(freq, ear, r);
+      }
+      $("meter").style.width = "100%";
+      $("statusBig").textContent = "Done";
+      $("statusSmall").textContent = "Retest a frequency from the table to average out noise.";
+    } catch (e) {
+      $("statusBig").textContent = "Stopped";
+      $("statusSmall").textContent = "Finished measurements are kept below.";
+    } finally {
+      run = null;
+      setRunning(false);
+    }
+  }
+
+  function stopTest() {
+    if (!run) return;
+    clearTimeout(run.timer);
+    if (run.tone) run.tone.stop();
+    if (run.reject) run.reject(new Error("stopped"));
+  }
+
+  function respond() {
+    const b = $("hearBtn");
+    b.classList.add("flash");
+    setTimeout(() => b.classList.remove("flash"), 120);
+    if (!run) return;
+    if (run.phase === "listen") run.onHeard();
+    else if (run.phase === "wait") {
+      run.falseAlarms++;
+      const w = $("faWarn");
+      w.hidden = run.falseAlarms < 2;
+      w.textContent = `${run.falseAlarms} presses with no tone playing. Press only when you're sure you heard something.`;
+    }
+  }
+
+  function setRunning(on) {
+    $("hearBtn").disabled = !on;
+    $("stopBtn").disabled = !on;
+    $("startBtn").disabled = on;
+    $("calBtn").disabled = on;
+    document.querySelectorAll("[data-retest]").forEach((b) => (b.disabled = on));
+    if (!on) $("faWarn").hidden = true;
+    if (on) $("hearBtn").focus({ preventScroll: true });
+  }
+
+  $("startBtn").addEventListener("click", () => {
+    const sel = orderFreqs([...checked]);
+    if (!sel.length) { $("statusSmall").textContent = "Pick at least one frequency."; return; }
+    const earMode = document.querySelector('input[name="ear"]:checked').value;
+    const ears = earMode === "RL" ? ["R", "L"] : [earMode];
+    const jobs = ears.flatMap((ear) => sel.map((freq) => ({ freq, ear })));
+    startTest(jobs);
+  });
+  $("stopBtn").addEventListener("click", stopTest);
+  // e.detail === 0 means a keyboard-triggered click; the space handler below already counted it
+  $("hearBtn").addEventListener("pointerdown", (e) => { e.preventDefault(); respond(); });
+  $("hearBtn").addEventListener("click", (e) => { if (e.detail === 0) e.preventDefault(); });
+  document.addEventListener("keydown", (e) => {
+    if (!run || e.repeat) return;
+    if (e.code === "Space" || e.key === " ") { e.preventDefault(); respond(); }
+  });
+
+  // ---------- results ----------
+  // key "R|1000" -> { runs: [dbfs...], status }
+  let results = new Map();
+  let isExample = true;
+  function seedExample() {
+    results = new Map([
+      ["R|500", { runs: [-60, -55], status: "ok" }],
+      ["R|1000", { runs: [-65, -60], status: "ok" }],
+      ["L|500", { runs: [-55], status: "ok" }],
+      ["L|1000", { runs: [-60, -65], status: "ok" }],
+    ]);
+    isExample = true;
+  }
+
+  function addResult(freq, ear, r) {
+    if (isExample) { results = new Map(); isExample = false; }
+    const key = `${ear}|${freq}`;
+    const cur = results.get(key) || { runs: [], status: "ok" };
+    if (r.threshold !== null) cur.runs.push(r.threshold);
+    cur.status = r.status;
+    results.set(key, cur);
+    renderResults();
+  }
+
+  const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+  const fmtDb = (x, sign = false) => x == null || Number.isNaN(x) ? "—" : `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toFixed(1)}`;
+
+  function rows() {
+    const out = [];
+    for (const [key, v] of results) {
+      const [ear, f] = key.split("|");
+      out.push({ ear, freq: Number(f), runs: v.runs, status: v.status, t: v.runs.length ? mean(v.runs) : null });
+    }
+    const earOrder = { R: 0, L: 1, B: 2 };
+    return out.sort((a, b) => earOrder[a.ear] - earOrder[b.ear] || a.freq - b.freq);
+  }
+
+  function renderRefSelect(data) {
+    const fs = [...new Set(data.map((r) => r.freq))].sort((a, b) => a - b);
+    const sel = $("refSel");
+    const prev = Number(sel.value) || 1000;
+    sel.innerHTML = fs.map((f) => `<option value="${f}">${f} Hz</option>`).join("") || `<option value="1000">1000 Hz</option>`;
+    sel.value = fs.includes(prev) ? prev : (fs.includes(1000) ? 1000 : fs[0] ?? 1000);
+  }
+
+  function renderResults() {
+    const data = rows();
+    $("exampleTag").hidden = !isExample;
+    renderRefSelect(data);
+    const ref = Number($("refSel").value);
+    const refT = {};
+    for (const r of data) if (r.freq === ref && r.t != null) refT[r.ear] = r.t;
+
+    // summary cards: one per non-reference frequency per ear
+    const cards = data.filter((r) => r.freq !== ref && r.t != null && refT[r.ear] != null).map((r) => {
+      const d = r.t - refT[r.ear];
+      const typ = iso226(r.freq) - iso226(ref);
+      return `<div class="delta"><span class="label"><span class="ear-${r.ear}">${EAR_NAME[r.ear]}</span> · ${r.freq} vs ${ref} Hz</span>
+        <span class="v">${fmtDb(d, true)} dB</span>
+        <span class="k">${d >= 0 ? "more" : "less"} signal needed at ${r.freq} Hz · typical ${fmtDb(typ, true)} dB</span></div>`;
+    });
+    $("summary").innerHTML = cards.join("") || `<p class="hint">Measure at least two frequencies to see a difference.</p>`;
+
+    // table
+    const head = `<thead><tr><th>Ear</th><th>Frequency</th><th>Threshold dBFS</th><th>Runs</th><th>Δ vs ${ref} Hz</th><th>Typical Δ</th><th>Yours − typical</th><th></th></tr></thead>`;
+    const body = data.map((r) => {
+      const isRef = r.freq === ref;
+      const d = !isRef && r.t != null && refT[r.ear] != null ? r.t - refT[r.ear] : null;
+      const typ = iso226(r.freq) - iso226(ref);
+      const statusNote = r.status === "floor" ? " ≤" : r.status === "approx" ? " ~" : "";
+      const runs = r.runs.length ? r.runs.map((x) => fmtDb(x)).join(", ") : (r.status === "none" ? "not heard" : "—");
+      return `<tr>
+        <td class="ear-${r.ear}">${EAR_NAME[r.ear]}</td>
+        <td>${r.freq} Hz</td>
+        <td>${statusNote}${fmtDb(r.t)}</td>
+        <td>${runs}</td>
+        <td class="${isRef ? "ref" : ""}">${isRef ? "reference" : fmtDb(d, true)}</td>
+        <td class="${isRef ? "ref" : ""}">${isRef ? "" : fmtDb(typ, true)}</td>
+        <td class="${isRef ? "ref" : ""}">${isRef || d == null ? "" : fmtDb(d - typ, true)}</td>
+        <td><button type="button" class="small" data-retest="${r.ear}|${r.freq}" ${run ? "disabled" : ""}>Retest</button></td>
+      </tr>`;
+    }).join("");
+    $("table").innerHTML = head + `<tbody>${body}</tbody>`;
+    renderChart(data);
+
+    const warn = data.some((r) => r.t != null && r.t <= -90) ? "Some thresholds are below −90 dBFS, close to what most sound cards can reproduce. Turn your volume down a little and retest everything."
+      : data.some((r) => r.t != null && r.t >= -15) ? "Some thresholds are above −15 dBFS. Turn your volume up and retest everything." : "";
+    if (!isExample && warn && !run) { $("statusSmall").textContent = warn; }
+  }
+
+  $("table").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-retest]");
+    if (!b || run) return;
+    const [ear, f] = b.dataset.retest.split("|");
+    if (isExample) { results = new Map(); isExample = false; }
+    startTest([{ freq: Number(f), ear }]);
+  });
+  $("refSel").addEventListener("change", renderResults);
+  $("clearBtn").addEventListener("click", () => { results = new Map(); isExample = false; renderResults(); });
+
+  // ---------- audiogram ----------
+  function renderChart(data) {
+    const W = 720, H = 300, L = 64, Rm = 20, T = 34, B = 40;
+    const pts = data.filter((r) => r.t != null);
+    const allF = [125, 250, 500, 1000, 2000, 4000, 8000, ...pts.map((p) => p.freq)];
+    const fMin = Math.min(...allF), fMax = Math.max(...allF);
+    const x = (f) => L + (Math.log(f / fMin) / Math.log(fMax / fMin)) * (W - L - Rm);
+    let lo = Math.min(-80, ...pts.map((p) => p.t)), hi = Math.max(-30, ...pts.map((p) => p.t));
+    lo = Math.floor((lo - 5) / 10) * 10; hi = Math.ceil((hi + 5) / 10) * 10;
+    // audiogram orientation: better hearing (quieter tone, more negative dBFS) at the top
+    const y = (db) => T + ((db - lo) / (hi - lo)) * (H - T - B);
+    let s = "";
+    for (let db = lo; db <= hi; db += 10) {
+      s += `<line x1="${L}" x2="${W - Rm}" y1="${y(db)}" y2="${y(db)}" stroke="var(--line)" stroke-width="1"/>`;
+      s += `<text x="${L - 8}" y="${y(db) + 4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">${db}</text>`;
+    }
+    const ticks = [...new Set(allF)].sort((a, b) => a - b);
+    for (const f of ticks) {
+      s += `<line x1="${x(f)}" x2="${x(f)}" y1="${T}" y2="${H - B}" stroke="var(--line)" stroke-width="1"/>`;
+      s += `<text x="${x(f)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">${fmtHz(f)}</text>`;
+    }
+    s += `<text x="${L}" y="18" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">dBFS · quieter tones at top</text>`;
+    s += `<text x="${W - Rm}" y="${H - 6}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">Hz</text>`;
+    const color = { R: "var(--right)", L: "var(--left)", B: "var(--both)" };
+    for (const ear of ["R", "L", "B"]) {
+      const e = pts.filter((p) => p.ear === ear).sort((a, b) => a.freq - b.freq);
+      if (!e.length) continue;
+      if (e.length > 1) s += `<polyline fill="none" stroke="${color[ear]}" stroke-width="2" points="${e.map((p) => `${x(p.freq)},${y(p.t)}`).join(" ")}"/>`;
+      for (const p of e) {
+        const cx = x(p.freq), cy = y(p.t);
+        // standard audiogram symbols: O right, X left
+        if (ear === "R") s += `<circle cx="${cx}" cy="${cy}" r="7" fill="var(--surface)" stroke="${color.R}" stroke-width="2.2"/>`;
+        else if (ear === "L") s += `<path d="M${cx - 6} ${cy - 6}L${cx + 6} ${cy + 6}M${cx + 6} ${cy - 6}L${cx - 6} ${cy + 6}" stroke="${color.L}" stroke-width="2.4" fill="none"/>`;
+        else s += `<path d="M${cx} ${cy - 7}L${cx + 7} ${cy + 6}L${cx - 7} ${cy + 6}Z" fill="var(--surface)" stroke="${color.B}" stroke-width="2.2"/>`;
+      }
+    }
+    let lx = W - Rm - 210;
+    for (const [ear, label] of [["R", "Right ○"], ["L", "Left ×"], ["B", "Both △"]]) {
+      if (!pts.some((p) => p.ear === ear)) continue;
+      s += `<text x="${lx}" y="18" font-size="12" fill="${color[ear]}" font-family="var(--font-body)" font-weight="600">${label}</text>`;
+      lx += 70;
+    }
+    $("chart").innerHTML = s;
+  }
+
+  // ---------- copy ----------
+  $("copyBtn").addEventListener("click", () => {
+    const ref = Number($("refSel").value);
+    const data = rows();
+    const refT = {};
+    for (const r of data) if (r.freq === ref && r.t != null) refT[r.ear] = r.t;
+    const lines = [`Ear\tHz\tThreshold dBFS\tRuns\tDelta vs ${ref} Hz\tTypical delta (ISO 226)`];
+    for (const r of data) {
+      const d = r.freq !== ref && r.t != null && refT[r.ear] != null ? (r.t - refT[r.ear]).toFixed(1) : "";
+      const typ = r.freq !== ref ? (iso226(r.freq) - iso226(ref)).toFixed(1) : "";
+      lines.push([EAR_NAME[r.ear], r.freq, r.t == null ? "" : r.t.toFixed(1), r.runs.join(" "), d, typ].join("\t"));
+    }
+    const text = lines.join("\n");
+    const done = () => { $("copyBtn").textContent = "Copied"; setTimeout(() => ($("copyBtn").textContent = "Copy results"), 1500); };
+    const fallback = () => { const t = $("copyFallback"); t.hidden = false; t.value = text; t.select(); };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (_) { fallback(); }
+  });
+
+  renderChips();
+  seedExample();
+  renderResults();
+})();
+</script>
+</body>
+</html>
